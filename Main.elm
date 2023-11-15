@@ -6,6 +6,7 @@ import Html exposing (Html, Attribute, div, input, text, table, tr, td, th, thea
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Json.Decode
+import List.Extra
 
 
 -- MAIN
@@ -64,10 +65,12 @@ type alias CriterionID = String
 
 type alias Criterion =
   {
-    id : String,
+    --id : String,
+    category : Int,
+    item : Int,
     url : String,
     critere : String,
-    thematique : String,
+    --thematique : String,
     objectif : String,
     miseEnOeuvre : String,
     controle : String,
@@ -76,15 +79,20 @@ type alias Criterion =
 
 criterionDecoder : Json.Decode.Decoder (String, Criterion)
 criterionDecoder = Json.Decode.map8 Criterion
-  ( Json.Decode.field "id" Json.Decode.string )
+  --( Json.Decode.field "id" Json.Decode.string )
+  ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.head |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
+  ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.Extra.getAt 1 |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
   ( Json.Decode.field "url" Json.Decode.string )
   ( Json.Decode.field "critere" Json.Decode.string )
-  ( Json.Decode.field "thematique" Json.Decode.string )
+  --( Json.Decode.field "thematique" Json.Decode.string )
   ( Json.Decode.field "objectif" Json.Decode.string )
   ( Json.Decode.field "miseEnOeuvre" Json.Decode.string )
   ( Json.Decode.field "controle" Json.Decode.string )
   ( Json.Decode.succeed NonConforme )
-  |> Json.Decode.andThen (\c -> Json.Decode.succeed (c.id, c))
+  |> Json.Decode.andThen (\c -> Json.Decode.succeed (getID c, c))
+
+getID : Criterion -> String
+getID c = (String.fromInt c.category) ++ "." ++ (String.fromInt c.item)
 
 emptyRef = { title = "", url = "", description = "", version = "", updated_at = "", author = { name = "", url = "" }, criteres = Dict.empty }
 
@@ -151,7 +159,10 @@ tableHeader =
     ]
 
 tableRows : Model -> List (Html Msg)
-tableRows model = List.map viewCriterion ( Dict.toList model.referential.criteres )
+tableRows model = List.map viewCriterion ( Dict.toList model.referential.criteres |> List.sortBy funnyID)
+
+funnyID : (String, Criterion) -> Int
+funnyID (_, c) = c.category * 100 + c.item
 
 statusString : CriterionStatus -> String
 statusString s = case s of
@@ -172,5 +183,5 @@ viewCriterion (id, c) =
   tr []
     [ td [] [ text id ]
     , td [ class "criteria-cell" ] [ text c.critere ]
-    , td [onClick (SetStatus c.id (rotateStatus c.status))] [ text (statusString c.status) ]
+    , td [onClick (SetStatus (getID c) (rotateStatus c.status))] [ text (statusString c.status) ]
     ]
