@@ -9,3 +9,7 @@ table td, table th, table tr {
 .criteria-cell {
     white-space: break-spaces;
 }
+
+.category-header {
+    background-color: darkblue;
+}

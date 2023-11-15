@@ -94,6 +94,19 @@ criterionDecoder = Json.Decode.map8 Criterion
 getID : Criterion -> String
 getID c = (String.fromInt c.category) ++ "." ++ (String.fromInt c.item)
 
+categories =
+  [ "Stratégie"
+  , "Spécifications"
+  , "Architecture"
+  , "UX/UI"
+  , "Contenus"
+  , "Frontend"
+  , "Backend"
+  , "Hébergement"
+  ]
+
+
+
 emptyRef = { title = "", url = "", description = "", version = "", updated_at = "", author = { name = "", url = "" }, criteres = Dict.empty }
 
 init: Json.Decode.Value -> (Model, Cmd Msg)
@@ -148,7 +161,11 @@ view model = case model.status of
     div [] [ text ( "Erreur : " ++ msg ) ]
   
   OK ->
-    div [] [ table [] (tableHeader :: (tableRows model)) ]
+    div [] [ table [] (List.concat (List.indexedMap (categoryTable model) categories)) ]
+
+categoryTable model index category = (catHeader index category :: tableHeader :: (tableRows model (index+1)))
+
+catHeader index category = thead [ class "category-header" ] [ th [colspan 3] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]]
 
 tableHeader : Html Msg
 tableHeader =
@@ -158,8 +175,12 @@ tableHeader =
     , th [] [ text "Statut" ]
     ]
 
-tableRows : Model -> List (Html Msg)
-tableRows model = List.map viewCriterion ( Dict.toList model.referential.criteres |> List.sortBy funnyID)
+tableRows : Model -> Int -> List (Html Msg)
+tableRows model cat =
+  Dict.toList model.referential.criteres
+  |> List.filter (\(_, c) -> c.category == cat)
+  |> List.sortBy funnyID
+  |> List.map viewCriterion
 
 funnyID : (String, Criterion) -> Int
 funnyID (_, c) = c.category * 100 + c.item
@@ -169,7 +190,7 @@ statusString s = case s of
   NonConforme -> "Non conforme"
   NonApplicable -> "Non applicable"
   Conforme -> "Conforme"
-  EnDeploiement -> "En cours de déploiement"
+  EnDeploiement -> "En déploiement"
 
 rotateStatus : CriterionStatus -> CriterionStatus
 rotateStatus s = case s of
