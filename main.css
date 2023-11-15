@@ -1,0 +1,11 @@
+body {
+    margin: 30px;
+}
+
+table td, table th, table tr {
+    text-align: unset;
+}
+
+.criteria-cell {
+    white-space: break-spaces;
+}

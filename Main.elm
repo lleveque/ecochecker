@@ -171,6 +171,6 @@ viewCriterion : (String, Criterion) -> Html Msg
 viewCriterion (id, c) =
   tr []
     [ td [] [ text id ]
-    , td [] [ text c.critere ]
+    , td [ class "criteria-cell" ] [ text c.critere ]
     , td [onClick (SetStatus c.id (rotateStatus c.status))] [ text (statusString c.status) ]
     ]
