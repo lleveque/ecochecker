@@ -7,6 +7,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Json.Decode
 import List.Extra
+import Round
 
 
 -- MAIN
@@ -161,11 +162,33 @@ view model = case model.status of
     div [] [ text ( "Erreur : " ++ msg ) ]
   
   OK ->
-    div [] [ table [] (List.concat (List.indexedMap (categoryTable model) categories)) ]
+    div [] [ viewScore model, table [] (List.concat (List.indexedMap (categoryTable model) categories)) ]
 
-categoryTable model index category = (catHeader index category :: tableHeader :: (tableRows model (index+1)))
+viewScore model =
+  let
+    criteria = model.referential.criteres |> Dict.values
+    nbTotal = criteria |> List.length
+    notApplicable = criteria |> List.filter (\c -> c.status == NonApplicable) |> List.length
+    conforme = criteria |> List.filter (\c -> c.status == Conforme) |> List.length
+    score = toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> Round.round 2
+  in
+    div [] [ text ("Score total : " ++ score) ]
 
-catHeader index category = thead [ class "category-header" ] [ th [colspan 3] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]]
+
+categoryTable model index category = (catHeader model index category :: tableHeader :: (tableRows model (index+1)))
+
+catHeader model index category =
+  let
+    criteria = model.referential.criteres |> Dict.values |> List.filter (\c -> c.category == index+1)
+    nbTotal = criteria |> List.length
+    notApplicable = criteria |> List.filter (\c -> c.status == NonApplicable) |> List.length
+    conforme = criteria |> List.filter (\c -> c.status == Conforme) |> List.length
+    score = toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> Round.round 2
+  in
+    thead [ class "category-header" ]
+    [ th [colspan 2] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
+    , th [] [ text ("Score : " ++ score) ]
+    ]
 
 tableHeader : Html Msg
 tableHeader =
