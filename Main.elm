@@ -224,8 +224,13 @@ view model = case model.status of
               ]
             ]
           Just site ->
-            [ h1 [] [ text "Évaluation du site ", a [ href site ] [ text site ] ]
-            , button [ onClick NukeSelectedSite ] [ text "Évaluer un autre site" ]
+            [ nav [ id "topbar"]
+              [ ul []
+                [ li [] [ button [] [ text "Télécharger en PDF" ] ]
+                , li [] [ button [ onClick NukeSelectedSite ] [ text "Évaluer un autre site" ] ]
+                ]
+              ]
+            , h1 [] [ text "Évaluation du site ", a [ href site ] [ text site ] ]
             , p [] [ text "Score de conformité : " ]
             , viewScore (model.referential.criteres
               |> Dict.keys
@@ -332,10 +337,10 @@ statusRankInv s = case s of
 statusString : CriterionStatus -> String
 statusString s = case s of
   AEvaluer -> "À évaluer 📝"
-  NonConforme -> "Non conforme ❌"
-  NonApplicable -> "Non applicable ☠️"
-  Conforme -> "Conforme ✅"
-  EnDeploiement -> "En déploiement 🏗️"
+  NonConforme -> "Non conforme 😵"
+  NonApplicable -> "Non applicable ☁️"
+  Conforme -> "Conforme 🔥"
+  EnDeploiement -> "En déploiement 🚀"
 
 statusClass : CriterionStatus -> String
 statusClass s = case s of
@@ -373,7 +378,7 @@ viewCriterion evaluation (id, c) =
           , a [ href c.url ] [ text c.url ]
           ]
         ]
-      , td [ class "status", onClick (SetStatus (getID c) (rotateStatus status))] [ text (statusString status) ]
+      , td [] [ button [ class ("status " ++ (statusClass status)), onClick (SetStatus (getID c) (rotateStatus status))] [ text (statusString status) ]]
       ]
 
 

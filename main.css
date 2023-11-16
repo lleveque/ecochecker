@@ -16,7 +16,8 @@ table td, table th, table tr {
 }
 
 .status {
-    text-align: end;
+    text-align: center;
+    width: 180px;
 }
 
 .status-na {
@@ -58,4 +59,46 @@ table td, table th, table tr {
 .progress {
     height: 100%;
     background-color: green;
+}
+
+#topbar {
+    margin-bottom: 0rem;
+    justify-content: flex-end;
+}
+
+#topbar ul {
+    margin-top: 0rem;
+    margin-bottom: 0rem;
+}
+
+button {
+    padding: 0.5rem 1rem;
+}
+
+button.status-na {
+    background-color: #757575;
+    color: #fff;
+    text-decoration: none;
+    border: none;
+}
+
+button.status-ok {
+    background-color: #56823A;
+    color: #fff;
+    text-decoration: none;
+    border: none;
+}
+
+button.status-ko {
+    background-color: #dc2d44;
+    color: #fff;
+    text-decoration: none;
+    border: none;
+}
+
+button.status-wip {
+    background-color: #946A00;
+    color: #fff;
+    text-decoration: none;
+    border: none;
 }
