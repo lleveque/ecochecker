@@ -20,7 +20,7 @@ table td, table th, table tr {
 }
 
 .status-na {
-    color: gray;
+    color: #757575;
     text-decoration: line-through;
 }
 
