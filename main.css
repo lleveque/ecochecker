@@ -44,6 +44,7 @@ table td, table th, table tr {
     width: 100px;
     background-color: #fff;
     padding : 2px;
+    border: 1px solid gray;
 }
 
 .progress {

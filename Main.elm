@@ -2,12 +2,15 @@ module Main exposing (..)
 
 import Browser
 import Dict
-import Html exposing (Html, Attribute, div, input, text, table, tr, td, th, thead)
+--import Html exposing Html, Attribute, div, input, text, table, tr, td, th, thead, summary, details)
+import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Json.Decode
 import List.Extra
 import Round
+import Markdown.Parser as Markdown
+import Markdown.Renderer
 
 
 -- MAIN
@@ -66,12 +69,10 @@ type alias CriterionID = String
 
 type alias Criterion =
   {
-    --id : String,
     category : Int,
     item : Int,
     url : String,
     critere : String,
-    --thematique : String,
     objectif : String,
     miseEnOeuvre : String,
     controle : String,
@@ -172,7 +173,7 @@ viewScore criteria =
     conforme = criteria |> List.filter (\c -> c.status == Conforme) |> List.length
     score = 100.0 * toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> round |> String.fromInt |> (\s -> s++"%")
   in
-    th [] [ div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ] ]
+    div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ]
 
 
 categoryTable model index category = (catHeader model index category :: tableHeader :: (tableRows model (index+1)))
@@ -182,8 +183,8 @@ catHeader model index category =
     progressBar = viewScore (model.referential.criteres |> Dict.values |> List.filter (\c -> c.category == index+1))
   in
     thead [ class "category-header" ]
-    [ th [colspan 2] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
-    , progressBar
+    [ th [colspan 2] [ text ("⊞⊟ Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
+    , th [] [ progressBar ]
     ]
 
 tableHeader : Html Msg
@@ -229,6 +230,29 @@ viewCriterion : (String, Criterion) -> Html Msg
 viewCriterion (id, c) =
   tr [ class (statusClass c.status)]
     [ td [] [ text id ]
-    , td [ class "criteria-cell" ] [ text c.critere ]
+    , td [ class "criteria-cell" ]
+      [ details []
+        [ summary [] [ text c.critere ]
+        , h3 [] [ text "Objectif" ]
+        , renderMarkdown c.objectif
+        , h3 [] [ text "Mise en oeuvre" ]
+        , renderMarkdown c.miseEnOeuvre
+        , h3 [] [ text "Contrôle" ]
+        , renderMarkdown c.controle
+        , h3 [] [ text "En savoir plus" ]
+        , a [href c.url] [ text c.url ]
+        ]
+      ]
     , td [ class "status", onClick (SetStatus (getID c) (rotateStatus c.status))] [ text (statusString c.status) ]
     ]
+
+
+renderMarkdown : String -> Html Msg
+renderMarkdown s =
+      case s
+        |> Markdown.parse
+        |> Result.mapError (\_ -> "Erreur de décodage du markdown")
+        |> Result.andThen (\ast -> Markdown.Renderer.render Markdown.Renderer.defaultHtmlRenderer ast)
+      of
+        Ok rendered -> div [] rendered
+        Err errors -> div [] [ text s ]
