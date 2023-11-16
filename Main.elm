@@ -26,12 +26,11 @@ main = Browser.element { init = init, update = update, view = view, subscription
 type alias Model =
   {
     status : Status,
-    referential : Referential
+    referential : Referential,
+    evaluation : Evaluation
   }
 
 type Status = OK | KO String
-
-type CriterionStatus = AEvaluer | NonConforme | EnDeploiement | Conforme | NonApplicable
 
 type alias Referential =
   { 
@@ -44,6 +43,25 @@ type alias Referential =
     criteres : Dict.Dict String Criterion
   }
 
+type alias Author =
+  {
+    name : String,
+    url : String
+  }
+
+emptyRef =
+  { title = ""
+  , url = ""
+  , description = ""
+  , version = ""
+  , updated_at = ""
+  , author =
+    { name = ""
+    , url = ""
+    }
+  , criteres = Dict.empty
+  }
+
 referentialDecoder : Json.Decode.Decoder Referential
 referentialDecoder = Json.Decode.map7 Referential
   ( Json.Decode.field "title" Json.Decode.string)
@@ -54,18 +72,10 @@ referentialDecoder = Json.Decode.map7 Referential
   ( Json.Decode.field "author" authorDecoder)
   ( Json.Decode.field "criteres" (Json.Decode.list criterionDecoder |> Json.Decode.andThen ( \l -> Dict.fromList l |> Json.Decode.succeed )))
 
-type alias Author =
-  {
-    name : String,
-    url : String
-  }
-
 authorDecoder : Json.Decode.Decoder Author
 authorDecoder = Json.Decode.map2 Author
     ( Json.Decode.field "name" Json.Decode.string )
     ( Json.Decode.field "url" Json.Decode.string )
-
-type alias CriterionID = String
 
 type alias Criterion =
   {
@@ -75,24 +85,8 @@ type alias Criterion =
     critere : String,
     objectif : String,
     miseEnOeuvre : String,
-    controle : String,
-    status : CriterionStatus
+    controle : String
   }
-
-criterionDecoder : Json.Decode.Decoder (String, Criterion)
-criterionDecoder = Json.Decode.map8 Criterion
-  ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.head |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
-  ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.Extra.getAt 1 |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
-  ( Json.Decode.field "url" Json.Decode.string )
-  ( Json.Decode.field "critere" Json.Decode.string )
-  ( Json.Decode.field "objectif" Json.Decode.string )
-  ( Json.Decode.field "miseEnOeuvre" Json.Decode.string )
-  ( Json.Decode.field "controle" Json.Decode.string )
-  ( Json.Decode.succeed AEvaluer )
-  |> Json.Decode.andThen (\c -> Json.Decode.succeed (getID c, c))
-
-getID : Criterion -> String
-getID c = (String.fromInt c.category) ++ "." ++ (String.fromInt c.item)
 
 categories =
   [ "Stratégie"
@@ -105,9 +99,24 @@ categories =
   , "Hébergement"
   ]
 
+type CriterionStatus = AEvaluer | NonConforme | EnDeploiement | Conforme | NonApplicable
 
+type alias Evaluation = Dict.Dict String CriterionStatus
 
-emptyRef = { title = "", url = "", description = "", version = "", updated_at = "", author = { name = "", url = "" }, criteres = Dict.empty }
+criterionDecoder : Json.Decode.Decoder (String, Criterion)
+criterionDecoder = Json.Decode.map7 Criterion
+  ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.head |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
+  ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.Extra.getAt 1 |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
+  ( Json.Decode.field "url" Json.Decode.string )
+  ( Json.Decode.field "critere" Json.Decode.string )
+  ( Json.Decode.field "objectif" Json.Decode.string )
+  ( Json.Decode.field "miseEnOeuvre" Json.Decode.string )
+  ( Json.Decode.field "controle" Json.Decode.string )
+  |> Json.Decode.andThen (\c -> Json.Decode.succeed (getID c, c))
+
+getID : Criterion -> String
+getID c = (String.fromInt c.category) ++ "." ++ (String.fromInt c.item)
+
 
 init: Json.Decode.Value -> (Model, Cmd Msg)
 init jsonReferential =
@@ -117,6 +126,7 @@ init jsonReferential =
           (
             { referential = referential
             , status = OK
+            , evaluation = Dict.empty
             }
           , Cmd.none
           )
@@ -125,6 +135,7 @@ init jsonReferential =
           (
             { referential = emptyRef
             , status = KO (Json.Decode.errorToString e)
+            , evaluation = Dict.empty
             }
           , Cmd.none
           )
@@ -138,20 +149,15 @@ type Msg = SetStatus String CriterionStatus
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+
   case msg of
+
     SetStatus criterionID status ->
       let
-        updatedCriteria = Dict.update criterionID (updateCriterionStatus status) model.referential.criteres
-        oldRef = model.referential
-        updatedRef = { oldRef | criteres = updatedCriteria }
+        updatedEvaluation = Dict.insert criterionID status model.evaluation
       in
-        ( { model | referential = updatedRef }, Cmd.none )
+        ( { model | evaluation = updatedEvaluation }, Cmd.none )
 
-updateCriterionStatus : CriterionStatus -> Maybe Criterion -> Maybe Criterion
-updateCriterionStatus status mCriterion =
-  case mCriterion of
-    Just c -> Just { c | status = status }
-    Nothing -> Nothing
 
 -- VIEW
 
@@ -164,17 +170,17 @@ view model = case model.status of
     div []
       [ div []
         [ text "Score de conformité : "
-        , viewScore (model.referential.criteres |> Dict.values)
+        , viewScore (model.referential.criteres |> Dict.keys |> List.map (statusFromId model.evaluation))
         ]
       , div [] (List.indexedMap (categoryTable model) categories)
       ]
 
-viewScore : List Criterion -> Html Msg
-viewScore criteria =
+viewScore : List CriterionStatus -> Html Msg
+viewScore statuses =
   let
-    nbTotal = criteria |> List.length
-    notApplicable = criteria |> List.filter (\c -> c.status == NonApplicable) |> List.length
-    conforme = criteria |> List.filter (\c -> c.status == Conforme) |> List.length
+    nbTotal = statuses |> List.length
+    notApplicable = statuses |> List.filter (\v -> v == NonApplicable) |> List.length
+    conforme = statuses |> List.filter (\v -> v == Conforme) |> List.length
     score = 100.0 * toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> round |> String.fromInt |> (\s -> s++"%")
   in
     div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ]
@@ -188,12 +194,20 @@ categoryTable model index category =
 
 catHeader model index category =
   let
-    progressBar = viewScore (model.referential.criteres |> Dict.values |> List.filter (\c -> c.category == index+1))
+    statuses =
+      model.referential.criteres
+      |> Dict.filter (\k c -> c.category == index+1)
+      |> Dict.keys
+      |> List.map (statusFromId model.evaluation)
+    progressBar = viewScore statuses
   in
     summary [ class "category-header" ]
     [ span [ class "category-title" ] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
     , progressBar
     ]
+
+statusFromId : Evaluation -> String -> CriterionStatus
+statusFromId evaluation id = Dict.get id evaluation |> Maybe.withDefault AEvaluer
 
 tableHeader : Html Msg
 tableHeader =
@@ -208,7 +222,7 @@ tableRows model cat =
   Dict.toList model.referential.criteres
   |> List.filter (\(_, c) -> c.category == cat)
   |> List.sortBy funnyID
-  |> List.map viewCriterion
+  |> List.map ( viewCriterion model.evaluation )
 
 funnyID : (String, Criterion) -> Int
 funnyID (_, c) = c.category * 100 + c.item
@@ -231,31 +245,34 @@ statusClass s = case s of
 
 rotateStatus : CriterionStatus -> CriterionStatus
 rotateStatus s = case s of
-  AEvaluer -> NonConforme
+  AEvaluer -> Conforme
+  Conforme -> NonConforme
   NonConforme -> EnDeploiement
-  EnDeploiement -> Conforme
-  Conforme -> NonApplicable
-  NonApplicable -> NonConforme
+  EnDeploiement -> NonApplicable
+  NonApplicable -> AEvaluer
 
-viewCriterion : (String, Criterion) -> Html Msg
-viewCriterion (id, c) =
-  tr [ class (statusClass c.status)]
-    [ td [] [ text id ]
-    , td [ class "criteria-cell" ]
-      [ details []
-        [ summary [] [ text c.critere ]
-        , h3 [ class "noprint" ] [ text "Objectif" ]
-        , renderMarkdown c.objectif
-        , h3 [ class "noprint" ] [ text "Mise en oeuvre" ]
-        , renderMarkdown c.miseEnOeuvre
-        , h3 [ class "noprint" ] [ text "Contrôle" ]
-        , renderMarkdown c.controle
-        , h3 [ class "noprint" ] [ text "En savoir plus" ]
-        , a [ href c.url ] [ text c.url ]
+viewCriterion : Evaluation -> (String, Criterion) -> Html Msg
+viewCriterion evaluation (id, c) =
+  let
+    status = Dict.get id evaluation |> Maybe.withDefault AEvaluer
+  in
+    tr [ class (statusClass status)]
+      [ td [] [ text id ]
+      , td [ class "criteria-cell" ]
+        [ details []
+          [ summary [] [ text c.critere ]
+          , h3 [ class "noprint" ] [ text "Objectif" ]
+          , renderMarkdown c.objectif
+          , h3 [ class "noprint" ] [ text "Mise en oeuvre" ]
+          , renderMarkdown c.miseEnOeuvre
+          , h3 [ class "noprint" ] [ text "Contrôle" ]
+          , renderMarkdown c.controle
+          , h3 [ class "noprint" ] [ text "En savoir plus" ]
+          , a [ href c.url ] [ text c.url ]
+          ]
         ]
+      , td [ class "status", onClick (SetStatus (getID c) (rotateStatus status))] [ text (statusString status) ]
       ]
-    , td [ class "status", onClick (SetStatus (getID c) (rotateStatus c.status))] [ text (statusString c.status) ]
-    ]
 
 
 renderMarkdown : String -> Html Msg
