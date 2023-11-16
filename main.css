@@ -13,3 +13,9 @@ table td, table th, table tr {
 .category-header {
     background-color: darkblue;
 }
+
+@media print {
+    .noprint {
+        display: none;
+    }
+}
