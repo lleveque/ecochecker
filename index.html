@@ -13,8 +13,6 @@
 
   <pre id="elm"></pre>
 
-  <button class="noprint" onclick="window.print()">🖨 Exporter en PDF</button>
-
 </main>
 
 <script src="./referential.js"></script>
@@ -22,10 +20,17 @@
 <script src="./main.js"></script>
 
 <script type="text/javascript">
-  Elm.Main.init({
+  var storedState = localStorage.getItem('evaluations');
+  var jsonState = storedState ? JSON.parse(storedState) : null;
+  console.log("Retrieved state: ", jsonState);
+
+  var app = Elm.Main.init({
       node: document.getElementById('elm'),
-      flags: referential
+      flags: { "ref" : referential, "eval" : jsonState }
   });
+
+  app.ports.printPage.subscribe( function () { window.print() } )
+  app.ports.storeData.subscribe( function (data) { localStorage.setItem('evaluations', JSON.stringify(data)); } );
 </script>
 
 </body>

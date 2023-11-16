@@ -43,8 +43,35 @@ table {
 }
 
 @media print {
+
+    @page {
+        size:A4 portrait;
+        margin: 5mm 5mm 5mm 5mm;
+        padding: 0mm 0mm 0mm 0mm;
+    }
+
     .noprint {
         display: none;
+    }
+
+    .category {
+        break-before: page;
+    }
+
+    .criterion {
+        break-before:page;
+        break-inside:avoid-page;
+        break-after:page;
+    }
+
+    details {
+        margin: 0 0;
+    }
+
+    table {
+        break-before: avoid-page;
+        break-inside: avoid-page;
+        break-after:auto;
     }
 }
 
@@ -138,4 +165,8 @@ button.status-wip {
 
 #filter-na {
     background-color: #757575;
+}
+
+.percents {
+    width: 42px;
 }

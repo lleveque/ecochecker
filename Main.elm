@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (main, printPage, storeData)
 
 import Browser
 import Dict
@@ -7,6 +7,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Json.Decode
+import Json.Encode
 import List.Extra
 import Round
 import Markdown.Parser as Markdown
@@ -18,7 +19,9 @@ import Url
 
 main = Browser.element { init = init, update = update, view = view, subscriptions = (\_ -> Sub.none) }
 
+port printPage : () -> Cmd msg
 
+port storeData : Json.Encode.Value -> Cmd msg
 
 -- MODEL
 
@@ -34,6 +37,18 @@ type alias Model =
     sortOrder : Order,
     filter : Filter
   }
+
+saveData : Dict.Dict String Evaluation -> Cmd msg
+saveData evaluations = evaluations |> evaluationsEncoder |> storeData
+
+evaluationsEncoder : Dict.Dict String Evaluation -> Json.Encode.Value
+evaluationsEncoder evaluations = Json.Encode.dict identity evaluationEncoder evaluations
+
+evaluationEncoder : Evaluation -> Json.Encode.Value
+evaluationEncoder evaluation = Json.Encode.dict identity criterionStatusEncoder evaluation
+
+criterionStatusEncoder : CriterionStatus -> Json.Encode.Value
+criterionStatusEncoder status = Json.Encode.string (statusCode status)
 
 type Status = OK | KO String
 
@@ -126,15 +141,42 @@ type Order = FunnyID | StatusInc | StatusDec
 
 type Filter = All | OnlyConforme | OnlyNonApplicable | OnlyEnDeploiement
 
-init: Json.Decode.Value -> (Model, Cmd Msg)
-init jsonReferential =
-    case Json.Decode.decodeValue referentialDecoder jsonReferential of
+type alias FlagData =
+  { referential : Referential
+  , evaluations : Dict.Dict String Evaluation }
 
-        Ok referential ->
+flagsDecoder: Json.Decode.Decoder FlagData
+flagsDecoder = Json.Decode.map2 FlagData
+  ( Json.Decode.field "ref" referentialDecoder)
+  ( Json.Decode.field "eval" evaluationsDecoder)
+
+evaluationsDecoder: Json.Decode.Decoder (Dict.Dict String Evaluation)
+evaluationsDecoder = Json.Decode.dict evaluationDecoder
+
+evaluationDecoder: Json.Decode.Decoder Evaluation
+evaluationDecoder = Json.Decode.dict criterionStatusDecoder
+
+criterionStatusDecoder: Json.Decode.Decoder CriterionStatus
+criterionStatusDecoder = Json.Decode.string |> Json.Decode.andThen (\s -> Json.Decode.succeed (statusDecode s))
+
+statusDecode : String -> CriterionStatus
+statusDecode s = case s of
+  "ko" -> NonConforme
+  "na" -> NonApplicable
+  "ok" -> Conforme
+  "wip" -> EnDeploiement
+  "tbd" -> AEvaluer
+  _ -> AEvaluer
+
+init: Json.Decode.Value -> (Model, Cmd Msg)
+init jFlags =
+    case Json.Decode.decodeValue flagsDecoder jFlags of
+
+        Ok flags ->
           (
-            { referential = referential
+            { referential = flags.referential
             , status = OK
-            , evaluations = Dict.empty
+            , evaluations = flags.evaluations
             , selectedSite = Nothing
             , textCandidate = "https://www.esaip.org"
             , isCandidateValidURL = True
@@ -169,12 +211,15 @@ type Msg =
   | NukeSelectedSite
   | SetOrder Order
   | SetFilter Filter
+  | PrintPage
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
 
   case msg of
+
+    PrintPage -> (model, printPage ())
 
     InputText text ->
       let
@@ -197,12 +242,11 @@ update msg model =
             updatedEvaluation = Dict.insert criterionID status evaluation
             updatedEvaluations = Dict.insert url updatedEvaluation model.evaluations
           in
-            ( { model | evaluations = updatedEvaluations }, Cmd.none )
+            ( { model | evaluations = updatedEvaluations }, saveData updatedEvaluations )
 
     SetOrder order -> ({ model | sortOrder = order }, Cmd.none)
 
     SetFilter filter -> ({ model | filter = filter }, Cmd.none)
-
 
 -- VIEW
 
@@ -221,7 +265,6 @@ view model = case model.status of
               [ span [] [ text "Entrez l'adresse du site que vous allez évaluer : " ]
               , label [ for "currentSite" ] [ text "Nouveau site à évaluer" ]
               , input [ id "currentSite", type_ "url", value model.textCandidate, placeholder "https://www.esaip.org/", onInput InputText ] []
-              --, button (if model.isCandidateValidURL then [ onClick LaunchEvaluation ] else []) [ text "Go !" ]
               , if (Dict.isEmpty model.evaluations)
                 then (div [] [])
                 else ( div []
@@ -235,8 +278,8 @@ view model = case model.status of
           Just site ->
             [ nav [ id "topbar"]
               [ ul []
-                [ li [] [ button [] [ text "Télécharger en PDF" ] ]
-                , li [] [ button [ onClick NukeSelectedSite ] [ text "Évaluer un autre site" ] ]
+                [ li [ class "noprint"] [ button [ onClick PrintPage ] [ text "🖨 Exporter en PDF" ] ]
+                , li [ class "noprint"] [ button [ onClick NukeSelectedSite ] [ text "Évaluer un autre site" ] ]
                 ]
               ]
             , h1 [] [ text "Évaluation du site ", a [ href site ] [ text site ] ]
@@ -246,7 +289,7 @@ view model = case model.status of
                 |> Dict.keys
                 |> List.map (statusFromId (getEvaluation model)))
               ]
-            , nav [id "filterbar"]
+            , nav [id "filterbar", class "noprint"]
               [ ul []
                 [ li [] [text "Afficher :"]
                 , li []
@@ -294,11 +337,11 @@ viewScore statuses =
     conforme = statuses |> List.filter (\v -> v == Conforme) |> List.length
     score = 100.0 * toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> round |> String.fromInt |> (\s -> s++"%")
   in
-    div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ]
+    div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], span [class "percents"] [text score] ]
 
 categoryTable : Model -> Int -> String -> Html Msg
 categoryTable model index category =
-  details [ attribute "open" "" ]
+  details [ class "category", attribute "open" "" ]
     [ catHeader model index category
     , if (getRowsForCat model (index+1) |> List.isEmpty)
       then p [] [ text "Aucun critère correspondant dans cette catégorie"]
@@ -401,6 +444,14 @@ statusString s = case s of
   Conforme -> "Conforme 🔥"
   EnDeploiement -> "En déploiement 🚀"
 
+statusCode : CriterionStatus -> String
+statusCode s = case s of
+  AEvaluer -> "tbd"
+  NonConforme -> "ko"
+  NonApplicable -> "na"
+  Conforme -> "ok"
+  EnDeploiement -> "wip"
+
 statusClass : CriterionStatus -> String
 statusClass s = case s of
   AEvaluer -> "status-tbd"
@@ -422,7 +473,7 @@ viewCriterion evaluation (id, c) =
   let
     status = statusFromId evaluation id
   in
-    tr [ class (statusClass status)]
+    tr [ class ("criterion "++(statusClass status)) ]
       [ td [] [ text id ]
       , td [ class "criteria-cell" ]
         [ details []
