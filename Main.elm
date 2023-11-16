@@ -11,7 +11,7 @@ import List.Extra
 import Round
 import Markdown.Parser as Markdown
 import Markdown.Renderer
-
+import Url
 
 -- MAIN
 
@@ -27,7 +27,10 @@ type alias Model =
   {
     status : Status,
     referential : Referential,
-    evaluation : Evaluation
+    evaluations : Dict.Dict String Evaluation,
+    textCandidate : String,
+    isCandidateValidURL : Bool,
+    selectedSite : Maybe String
   }
 
 type Status = OK | KO String
@@ -126,7 +129,10 @@ init jsonReferential =
           (
             { referential = referential
             , status = OK
-            , evaluation = Dict.empty
+            , evaluations = Dict.empty
+            , selectedSite = Nothing
+            , textCandidate = "https://www.esaip.org"
+            , isCandidateValidURL = True
             }
           , Cmd.none
           )
@@ -135,7 +141,10 @@ init jsonReferential =
           (
             { referential = emptyRef
             , status = KO (Json.Decode.errorToString e)
-            , evaluation = Dict.empty
+            , evaluations = Dict.empty
+            , selectedSite = Nothing
+            , textCandidate = ""
+            , isCandidateValidURL = False
             }
           , Cmd.none
           )
@@ -144,7 +153,11 @@ init jsonReferential =
 -- UPDATE
 
 
-type Msg = SetStatus String CriterionStatus
+type Msg =
+  InputText String
+  | LaunchEvaluation
+  | SetStatus String CriterionStatus
+  | NukeSelectedSite
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -152,11 +165,28 @@ update msg model =
 
   case msg of
 
-    SetStatus criterionID status ->
+    InputText text ->
       let
-        updatedEvaluation = Dict.insert criterionID status model.evaluation
+        valid = case (Url.fromString text) of
+          Just url -> True
+          Nothing -> False
       in
-        ( { model | evaluation = updatedEvaluation }, Cmd.none )
+        ({ model | textCandidate = text, isCandidateValidURL = valid }, Cmd.none)
+
+    LaunchEvaluation -> ({ model | selectedSite = Just model.textCandidate }, Cmd.none)
+
+    NukeSelectedSite -> ({ model | selectedSite = Nothing }, Cmd.none)
+
+    SetStatus criterionID status ->
+      case model.selectedSite of
+        Nothing -> ( model, Cmd.none )
+        Just url ->
+          let
+            evaluation = Dict.get url model.evaluations |> Maybe.withDefault Dict.empty
+            updatedEvaluation = Dict.insert criterionID status evaluation
+            updatedEvaluations = Dict.insert url updatedEvaluation model.evaluations
+          in
+            ( { model | evaluations = updatedEvaluations }, Cmd.none )
 
 
 -- VIEW
@@ -168,12 +198,41 @@ view model = case model.status of
   
   OK ->
     div []
-      [ div []
-        [ text "Score de conformité : "
-        , viewScore (model.referential.criteres |> Dict.keys |> List.map (statusFromId model.evaluation))
-        ]
-      , div [] (List.indexedMap (categoryTable model) categories)
-      ]
+      ( case model.selectedSite of
+          Nothing ->
+            [ h1 [] [ text "Bloc-notes RGESN" ]
+            , span [] [ text "Bienvenue sur l'éco-évaluateur de sites web !" ]
+            , div []
+              [ span [] [ text "Entrez l'adresse du site que vous allez évaluer : " ]
+              , label [ for "currentSite" ] [ text "Nouveau site à évaluer" ]
+              , input [ id "currentSite", type_ "url", value model.textCandidate, placeholder "https://www.esaip.org/", onInput InputText ] []
+              , button (if model.isCandidateValidURL then [ onClick LaunchEvaluation ] else []) [ text "Go !" ]
+              , if (Dict.isEmpty model.evaluations)
+                then (div [] [])
+                else ( div []
+                  [ span [] [ text "ou reprenez une évaluation en cours : " ]
+                  , label [ for "evaluatedSites" ] [ text "Sites déjà évalués" ]
+                  , select [ id "evaluatedSites" ] (List.map (\url -> option [] [ text url ]) (Dict.keys model.evaluations))
+                  ])
+              ]
+            ]
+          Just site ->
+            [ h1 [] [ text "Évaluation du site ", a [ href site ] [ text site ] ]
+            , button [ onClick NukeSelectedSite ] [ text "Évaluer un autre site" ]
+            , p [] [ text "Score de conformité : " ]
+            , viewScore (model.referential.criteres
+              |> Dict.keys
+              |> List.map (statusFromId (getEvaluation model)))
+            , div [] (List.indexedMap (categoryTable model) categories)
+            --, button [ class "noprint", attribute "onclick" "window.print()" ] [ text "🖨 Imprimer ce rapport" ] -- TODO make a port to JS
+            ]
+        )
+
+getEvaluation : Model -> Evaluation
+getEvaluation model =
+  case model.selectedSite of
+    Just url -> Dict.get url model.evaluations |> Maybe.withDefault Dict.empty
+    Nothing -> Dict.empty
 
 viewScore : List CriterionStatus -> Html Msg
 viewScore statuses =
@@ -185,20 +244,21 @@ viewScore statuses =
   in
     div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ]
 
-
+categoryTable : Model -> Int -> String -> Html Msg
 categoryTable model index category =
   details [ attribute "open" "" ]
     [ catHeader model index category
     , table [] (tableHeader :: (tableRows model (index+1)))
     ]
 
+catHeader : Model -> Int -> String -> Html Msg
 catHeader model index category =
   let
     statuses =
       model.referential.criteres
       |> Dict.filter (\k c -> c.category == index+1)
       |> Dict.keys
-      |> List.map (statusFromId model.evaluation)
+      |> List.map (statusFromId (getEvaluation model))
     progressBar = viewScore statuses
   in
     summary [ class "category-header" ]
@@ -222,7 +282,7 @@ tableRows model cat =
   Dict.toList model.referential.criteres
   |> List.filter (\(_, c) -> c.category == cat)
   |> List.sortBy funnyID
-  |> List.map ( viewCriterion model.evaluation )
+  |> List.map ( viewCriterion (getEvaluation model) )
 
 funnyID : (String, Criterion) -> Int
 funnyID (_, c) = c.category * 100 + c.item
