@@ -30,7 +30,8 @@ type alias Model =
     evaluations : Dict.Dict String Evaluation,
     textCandidate : String,
     isCandidateValidURL : Bool,
-    selectedSite : Maybe String
+    selectedSite : Maybe String,
+    sortOrder : Order
   }
 
 type Status = OK | KO String
@@ -120,6 +121,7 @@ criterionDecoder = Json.Decode.map7 Criterion
 getID : Criterion -> String
 getID c = (String.fromInt c.category) ++ "." ++ (String.fromInt c.item)
 
+type Order = FunnyID | StatusInc | StatusDec
 
 init: Json.Decode.Value -> (Model, Cmd Msg)
 init jsonReferential =
@@ -133,6 +135,7 @@ init jsonReferential =
             , selectedSite = Nothing
             , textCandidate = "https://www.esaip.org"
             , isCandidateValidURL = True
+            , sortOrder = FunnyID
             }
           , Cmd.none
           )
@@ -145,6 +148,7 @@ init jsonReferential =
             , selectedSite = Nothing
             , textCandidate = ""
             , isCandidateValidURL = False
+            , sortOrder = FunnyID
             }
           , Cmd.none
           )
@@ -158,6 +162,7 @@ type Msg =
   | LaunchEvaluation
   | SetStatus String CriterionStatus
   | NukeSelectedSite
+  | SetOrder Order
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -187,6 +192,8 @@ update msg model =
             updatedEvaluations = Dict.insert url updatedEvaluation model.evaluations
           in
             ( { model | evaluations = updatedEvaluations }, Cmd.none )
+
+    SetOrder order -> ({ model | sortOrder = order }, Cmd.none)
 
 
 -- VIEW
@@ -248,7 +255,7 @@ categoryTable : Model -> Int -> String -> Html Msg
 categoryTable model index category =
   details [ attribute "open" "" ]
     [ catHeader model index category
-    , table [] (tableHeader :: (tableRows model (index+1)))
+    , table [] (tableHeader model.sortOrder :: (tableRows model (index+1)))
     ]
 
 catHeader : Model -> Int -> String -> Html Msg
@@ -269,23 +276,58 @@ catHeader model index category =
 statusFromId : Evaluation -> String -> CriterionStatus
 statusFromId evaluation id = Dict.get id evaluation |> Maybe.withDefault AEvaluer
 
-tableHeader : Html Msg
-tableHeader =
+tableHeader : Order -> Html Msg
+tableHeader order =
   thead []
-    [ th [] [ text "#" ]
+    [ th [ onClick (SetOrder FunnyID) ] [ text "#" ]
     , th [] [ text "Critère" ]
-    , th [ class "status" ] [ text "Statut" ]
+    , th [ class "status", onClick (SetOrder ( if order == StatusInc then StatusDec else StatusInc )) ] [ text "Statut" ]
     ]
 
 tableRows : Model -> Int -> List (Html Msg)
 tableRows model cat =
   Dict.toList model.referential.criteres
   |> List.filter (\(_, c) -> c.category == cat)
-  |> List.sortBy funnyID
+  |> List.sortBy
+    ( case model.sortOrder of
+        FunnyID -> funnyID model
+        StatusInc -> statusIncOrder model
+        StatusDec -> statusDecOrder model
+    )
   |> List.map ( viewCriterion (getEvaluation model) )
 
-funnyID : (String, Criterion) -> Int
-funnyID (_, c) = c.category * 100 + c.item
+funnyID : Model -> (String, Criterion) -> Int
+funnyID _ (_, c) = c.category * 100 + c.item
+
+statusIncOrder : Model -> (String, Criterion) -> Int
+statusIncOrder model (id, c) =
+  let
+    sRank = statusFromId (getEvaluation model) id |> statusRank
+  in
+    10000 * sRank + (funnyID model (id,c))
+
+statusDecOrder : Model -> (String, Criterion) -> Int
+statusDecOrder model (id, c) =
+  let
+    sRank = statusFromId (getEvaluation model) id |> statusRankInv
+  in
+    10000 * sRank + (funnyID model (id,c))
+
+statusRank : CriterionStatus -> Int
+statusRank s = case s of
+  Conforme -> 1
+  EnDeploiement -> 2
+  NonConforme -> 3
+  AEvaluer -> 4
+  NonApplicable -> 5
+
+statusRankInv : CriterionStatus -> Int
+statusRankInv s = case s of
+  NonConforme -> 1
+  EnDeploiement -> 2
+  Conforme -> 3
+  AEvaluer -> 4
+  NonApplicable -> 5
 
 statusString : CriterionStatus -> String
 statusString s = case s of
@@ -314,7 +356,7 @@ rotateStatus s = case s of
 viewCriterion : Evaluation -> (String, Criterion) -> Html Msg
 viewCriterion evaluation (id, c) =
   let
-    status = Dict.get id evaluation |> Maybe.withDefault AEvaluer
+    status = statusFromId evaluation id
   in
     tr [ class (statusClass status)]
       [ td [] [ text id ]
