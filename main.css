@@ -11,8 +11,13 @@ table td, table th, table tr {
     text-align: unset;
 }
 
+table {
+    width: 100%;
+}
+
 .criteria-cell {
     white-space: break-spaces;
+    width:100%;
 }
 
 .status {
@@ -59,6 +64,15 @@ table td, table th, table tr {
 .progress {
     height: 100%;
     background-color: green;
+}
+
+#filterbar {
+    margin-bottom: 0rem;
+}
+
+#filterbar ul {
+    margin-top: 0rem;
+    margin-bottom: 0rem;
 }
 
 #topbar {

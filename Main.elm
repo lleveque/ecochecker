@@ -31,7 +31,8 @@ type alias Model =
     textCandidate : String,
     isCandidateValidURL : Bool,
     selectedSite : Maybe String,
-    sortOrder : Order
+    sortOrder : Order,
+    filter : Filter
   }
 
 type Status = OK | KO String
@@ -123,6 +124,8 @@ getID c = (String.fromInt c.category) ++ "." ++ (String.fromInt c.item)
 
 type Order = FunnyID | StatusInc | StatusDec
 
+type Filter = All | OnlyConforme | OnlyNonApplicable | OnlyEnDeploiement
+
 init: Json.Decode.Value -> (Model, Cmd Msg)
 init jsonReferential =
     case Json.Decode.decodeValue referentialDecoder jsonReferential of
@@ -136,6 +139,7 @@ init jsonReferential =
             , textCandidate = "https://www.esaip.org"
             , isCandidateValidURL = True
             , sortOrder = FunnyID
+            , filter = All
             }
           , Cmd.none
           )
@@ -149,6 +153,7 @@ init jsonReferential =
             , textCandidate = ""
             , isCandidateValidURL = False
             , sortOrder = FunnyID
+            , filter = All
             }
           , Cmd.none
           )
@@ -163,6 +168,7 @@ type Msg =
   | SetStatus String CriterionStatus
   | NukeSelectedSite
   | SetOrder Order
+  | SetFilter Filter
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -194,6 +200,8 @@ update msg model =
             ( { model | evaluations = updatedEvaluations }, Cmd.none )
 
     SetOrder order -> ({ model | sortOrder = order }, Cmd.none)
+
+    SetFilter filter -> ({ model | filter = filter }, Cmd.none)
 
 
 -- VIEW
@@ -231,10 +239,21 @@ view model = case model.status of
                 ]
               ]
             , h1 [] [ text "Évaluation du site ", a [ href site ] [ text site ] ]
-            , p [] [ text "Score de conformité : " ]
-            , viewScore (model.referential.criteres
-              |> Dict.keys
-              |> List.map (statusFromId (getEvaluation model)))
+            , div []
+              [ span [] [ text "Score de conformité : " ]
+              , viewScore (model.referential.criteres
+                |> Dict.keys
+                |> List.map (statusFromId (getEvaluation model)))
+              ]
+            , nav [id "filterbar"]
+              [ ul []
+                [ li [] [text "Afficher :"]
+                , li [] [ button [ onClick (SetFilter All)] [ text "Tous les critères" ] ]
+                , li [] [ button [ onClick (SetFilter OnlyConforme)] [ text "Les conformes" ] ]
+                , li [] [ button [ onClick (SetFilter OnlyEnDeploiement)] [ text "Ceux en déploiement" ] ]
+                , li [] [ button [ onClick (SetFilter OnlyNonApplicable)] [ text "Les non-applicables" ] ]
+                ]
+              ]
             , div [] (List.indexedMap (categoryTable model) categories)
             --, button [ class "noprint", attribute "onclick" "window.print()" ] [ text "🖨 Imprimer ce rapport" ] -- TODO make a port to JS
             ]
@@ -260,7 +279,9 @@ categoryTable : Model -> Int -> String -> Html Msg
 categoryTable model index category =
   details [ attribute "open" "" ]
     [ catHeader model index category
-    , table [] (tableHeader model.sortOrder :: (tableRows model (index+1)))
+    , if (getRowsForCat model (index+1) |> List.isEmpty)
+      then p [] [ text "Aucun critère correspondant dans cette catégorie"]
+      else table [] (tableHeader model.sortOrder :: (tableRows model (index+1)))
     ]
 
 catHeader : Model -> Int -> String -> Html Msg
@@ -285,7 +306,7 @@ tableHeader : Order -> Html Msg
 tableHeader order =
   thead []
     [ th [ onClick (SetOrder FunnyID) ] [ text (if order == FunnyID then "# ↓" else "#") ]
-    , th [] [ text "Critère" ]
+    , th [ ] [ text "Critère" ]
     , th
       [ class "status"
       , onClick (SetOrder ( if order == StatusInc then StatusDec else StatusInc ))
@@ -293,10 +314,15 @@ tableHeader order =
       [ text (if order == StatusInc then "Statut ↓" else if order == StatusDec then "Statut ↑" else "Statut") ]
     ]
 
-tableRows : Model -> Int -> List (Html Msg)
-tableRows model cat =
+getRowsForCat : Model -> Int -> List (String, Criterion)
+getRowsForCat model cat =
   Dict.toList model.referential.criteres
   |> List.filter (\(_, c) -> c.category == cat)
+  |> List.filter (generalFilter model)
+
+tableRows : Model -> Int -> List (Html Msg)
+tableRows model cat =
+  getRowsForCat model cat
   |> List.sortBy
     ( case model.sortOrder of
         FunnyID -> funnyID model
@@ -304,6 +330,14 @@ tableRows model cat =
         StatusDec -> statusDecOrder model
     )
   |> List.map ( viewCriterion (getEvaluation model) )
+
+generalFilter : Model -> (String, Criterion) -> Bool
+generalFilter model (id, _) =
+  case model.filter of
+    All -> True
+    OnlyConforme -> (statusFromId (getEvaluation model) id) == Conforme
+    OnlyNonApplicable -> (statusFromId (getEvaluation model) id) == NonApplicable
+    OnlyEnDeploiement -> (statusFromId (getEvaluation model) id) == EnDeploiement
 
 funnyID : Model -> (String, Criterion) -> Int
 funnyID _ (_, c) = c.category * 100 + c.item
