@@ -31,7 +31,7 @@ type alias Model =
 
 type Status = OK | KO String
 
-type CriterionStatus = Conforme | EnDeploiement | NonConforme | NonApplicable
+type CriterionStatus = AEvaluer | NonConforme | EnDeploiement | Conforme | NonApplicable
 
 type alias Referential =
   { 
@@ -81,16 +81,14 @@ type alias Criterion =
 
 criterionDecoder : Json.Decode.Decoder (String, Criterion)
 criterionDecoder = Json.Decode.map8 Criterion
-  --( Json.Decode.field "id" Json.Decode.string )
   ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.head |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
   ( Json.Decode.field "id" Json.Decode.string |> (Json.Decode.andThen ( \v -> String.split "." v |> List.Extra.getAt 1 |> Maybe.withDefault "0" |> String.toInt |> Maybe.withDefault 0 |> Json.Decode.succeed )))
   ( Json.Decode.field "url" Json.Decode.string )
   ( Json.Decode.field "critere" Json.Decode.string )
-  --( Json.Decode.field "thematique" Json.Decode.string )
   ( Json.Decode.field "objectif" Json.Decode.string )
   ( Json.Decode.field "miseEnOeuvre" Json.Decode.string )
   ( Json.Decode.field "controle" Json.Decode.string )
-  ( Json.Decode.succeed NonConforme )
+  ( Json.Decode.succeed AEvaluer )
   |> Json.Decode.andThen (\c -> Json.Decode.succeed (getID c, c))
 
 getID : Criterion -> String
@@ -163,7 +161,13 @@ view model = case model.status of
     div [] [ text ( "Erreur : " ++ msg ) ]
   
   OK ->
-    div [] [ viewScore (model.referential.criteres |> Dict.values), table [] (List.concat (List.indexedMap (categoryTable model) categories)) ]
+    div []
+      [ div []
+        [ text "Score de conformité : "
+        , viewScore (model.referential.criteres |> Dict.values)
+        ]
+      , div [] (List.indexedMap (categoryTable model) categories)
+      ]
 
 viewScore : List Criterion -> Html Msg
 viewScore criteria =
@@ -176,15 +180,19 @@ viewScore criteria =
     div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ]
 
 
-categoryTable model index category = (catHeader model index category :: tableHeader :: (tableRows model (index+1)))
+categoryTable model index category =
+  details [ attribute "open" "" ]
+    [ catHeader model index category
+    , table [] (tableHeader :: (tableRows model (index+1)))
+    ]
 
 catHeader model index category =
   let
     progressBar = viewScore (model.referential.criteres |> Dict.values |> List.filter (\c -> c.category == index+1))
   in
-    thead [ class "category-header" ]
-    [ th [colspan 2] [ text ("⊞⊟ Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
-    , th [] [ progressBar ]
+    summary [ class "category-header" ]
+    [ span [ class "category-title" ] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
+    , progressBar
     ]
 
 tableHeader : Html Msg
@@ -207,6 +215,7 @@ funnyID (_, c) = c.category * 100 + c.item
 
 statusString : CriterionStatus -> String
 statusString s = case s of
+  AEvaluer -> "À évaluer 📝"
   NonConforme -> "Non conforme ❌"
   NonApplicable -> "Non applicable ☠️"
   Conforme -> "Conforme ✅"
@@ -214,6 +223,7 @@ statusString s = case s of
 
 statusClass : CriterionStatus -> String
 statusClass s = case s of
+  AEvaluer -> "status-tbd"
   NonConforme -> "status-ko"
   NonApplicable -> "status-na"
   Conforme -> "status-ok"
@@ -221,6 +231,7 @@ statusClass s = case s of
 
 rotateStatus : CriterionStatus -> CriterionStatus
 rotateStatus s = case s of
+  AEvaluer -> NonConforme
   NonConforme -> EnDeploiement
   EnDeploiement -> Conforme
   Conforme -> NonApplicable
@@ -233,14 +244,14 @@ viewCriterion (id, c) =
     , td [ class "criteria-cell" ]
       [ details []
         [ summary [] [ text c.critere ]
-        , h3 [] [ text "Objectif" ]
+        , h3 [ class "noprint" ] [ text "Objectif" ]
         , renderMarkdown c.objectif
-        , h3 [] [ text "Mise en oeuvre" ]
+        , h3 [ class "noprint" ] [ text "Mise en oeuvre" ]
         , renderMarkdown c.miseEnOeuvre
-        , h3 [] [ text "Contrôle" ]
+        , h3 [ class "noprint" ] [ text "Contrôle" ]
         , renderMarkdown c.controle
-        , h3 [] [ text "En savoir plus" ]
-        , a [href c.url] [ text c.url ]
+        , h3 [ class "noprint" ] [ text "En savoir plus" ]
+        , a [ href c.url ] [ text c.url ]
         ]
       ]
     , td [ class "status", onClick (SetStatus (getID c) (rotateStatus c.status))] [ text (statusString c.status) ]
@@ -254,5 +265,5 @@ renderMarkdown s =
         |> Result.mapError (\_ -> "Erreur de décodage du markdown")
         |> Result.andThen (\ast -> Markdown.Renderer.render Markdown.Renderer.defaultHtmlRenderer ast)
       of
-        Ok rendered -> div [] rendered
-        Err errors -> div [] [ text s ]
+        Ok rendered -> div [ class "noprint" ] rendered
+        Err errors -> div [ class "noprint" ] [ text s ]

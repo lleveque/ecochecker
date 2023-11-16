@@ -25,7 +25,15 @@ table td, table th, table tr {
 }
 
 .category-header {
-    background-color: darkblue;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 4px;
+}
+
+.category-title {
+    font-size: larger;
+    flex-grow: 100;
 }
 
 @media print {
