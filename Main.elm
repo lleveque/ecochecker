@@ -221,14 +221,15 @@ view model = case model.status of
               [ span [] [ text "Entrez l'adresse du site que vous allez évaluer : " ]
               , label [ for "currentSite" ] [ text "Nouveau site à évaluer" ]
               , input [ id "currentSite", type_ "url", value model.textCandidate, placeholder "https://www.esaip.org/", onInput InputText ] []
-              , button (if model.isCandidateValidURL then [ onClick LaunchEvaluation ] else []) [ text "Go !" ]
+              --, button (if model.isCandidateValidURL then [ onClick LaunchEvaluation ] else []) [ text "Go !" ]
               , if (Dict.isEmpty model.evaluations)
                 then (div [] [])
                 else ( div []
                   [ span [] [ text "ou reprenez une évaluation en cours : " ]
                   , label [ for "evaluatedSites" ] [ text "Sites déjà évalués" ]
-                  , select [ id "evaluatedSites" ] (List.map (\url -> option [] [ text url ]) (Dict.keys model.evaluations))
-                  ])
+                  , select [ id "evaluatedSites", onInput InputText ] (option [ style "display" "none"] [] :: (List.map (\url -> option [] [ text url ]) (Dict.keys model.evaluations)))
+                ])
+              , button (if model.isCandidateValidURL then [ onClick LaunchEvaluation ] else []) [ text "Go !" ]
               ]
             ]
           Just site ->
