@@ -116,3 +116,26 @@ button.status-wip {
     text-decoration: none;
     border: none;
 }
+
+.active {
+    opacity: 100%;
+}
+.inactive {
+    opacity: 20%;
+}
+
+.filter-button {
+    border: none;
+}
+
+#filter-ok {
+    background-color: #56823A;
+}
+
+#filter-wip {
+    background-color: #946A00;
+}
+
+#filter-na {
+    background-color: #757575;
+}

@@ -248,10 +248,30 @@ view model = case model.status of
             , nav [id "filterbar"]
               [ ul []
                 [ li [] [text "Afficher :"]
-                , li [] [ button [ onClick (SetFilter All)] [ text "Tous les critères" ] ]
-                , li [] [ button [ onClick (SetFilter OnlyConforme)] [ text "Les conformes" ] ]
-                , li [] [ button [ onClick (SetFilter OnlyEnDeploiement)] [ text "Ceux en déploiement" ] ]
-                , li [] [ button [ onClick (SetFilter OnlyNonApplicable)] [ text "Les non-applicables" ] ]
+                , li []
+                  [ button 
+                    [id "filter-all"
+                    , class (if model.filter == All then "filter-button active" else "filter-button inactive")
+                    , onClick (SetFilter All)]
+                    [ text "Tous les critères" ] ]
+                , li [] 
+                  [ button 
+                    [id "filter-ok"
+                    , class (if model.filter == OnlyConforme then "filter-button active" else "filter-button inactive")
+                    , onClick (SetFilter OnlyConforme)]
+                    [ text "Les conformes" ] ]
+                , li [] 
+                  [ button 
+                    [id "filter-wip"
+                    , class (if model.filter == OnlyEnDeploiement then "filter-button active" else "filter-button inactive")
+                    , onClick (SetFilter OnlyEnDeploiement)]
+                    [ text "Ceux en déploiement" ] ]
+                , li [] 
+                  [ button 
+                    [id "filter-na"
+                    , class (if model.filter == OnlyNonApplicable then "filter-button active" else "filter-button inactive")
+                    , onClick (SetFilter OnlyNonApplicable)]
+                    [ text "Les non-applicables" ] ]
                 ]
               ]
             , div [] (List.indexedMap (categoryTable model) categories)
