@@ -21,7 +21,7 @@
 
 <script type="text/javascript">
   var storedState = localStorage.getItem('evaluations');
-  var jsonState = storedState ? JSON.parse(storedState) : null;
+  var jsonState = storedState ? JSON.parse(storedState) : {};
   console.log("Retrieved state: ", jsonState);
 
   var app = Elm.Main.init({
