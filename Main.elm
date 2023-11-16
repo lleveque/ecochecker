@@ -284,9 +284,13 @@ statusFromId evaluation id = Dict.get id evaluation |> Maybe.withDefault AEvalue
 tableHeader : Order -> Html Msg
 tableHeader order =
   thead []
-    [ th [ onClick (SetOrder FunnyID) ] [ text "#" ]
+    [ th [ onClick (SetOrder FunnyID) ] [ text (if order == FunnyID then "# ↓" else "#") ]
     , th [] [ text "Critère" ]
-    , th [ class "status", onClick (SetOrder ( if order == StatusInc then StatusDec else StatusInc )) ] [ text "Statut" ]
+    , th
+      [ class "status"
+      , onClick (SetOrder ( if order == StatusInc then StatusDec else StatusInc ))
+      ]
+      [ text (if order == StatusInc then "Statut ↓" else if order == StatusDec then "Statut ↑" else "Statut") ]
     ]
 
 tableRows : Model -> Int -> List (Html Msg)
