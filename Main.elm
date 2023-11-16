@@ -162,32 +162,28 @@ view model = case model.status of
     div [] [ text ( "Erreur : " ++ msg ) ]
   
   OK ->
-    div [] [ viewScore model, table [] (List.concat (List.indexedMap (categoryTable model) categories)) ]
+    div [] [ viewScore (model.referential.criteres |> Dict.values), table [] (List.concat (List.indexedMap (categoryTable model) categories)) ]
 
-viewScore model =
+viewScore : List Criterion -> Html Msg
+viewScore criteria =
   let
-    criteria = model.referential.criteres |> Dict.values
     nbTotal = criteria |> List.length
     notApplicable = criteria |> List.filter (\c -> c.status == NonApplicable) |> List.length
     conforme = criteria |> List.filter (\c -> c.status == Conforme) |> List.length
-    score = toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> Round.round 2
+    score = 100.0 * toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> round |> String.fromInt |> (\s -> s++"%")
   in
-    div [] [ text ("Score total : " ++ score) ]
+    th [] [ div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], text score ] ]
 
 
 categoryTable model index category = (catHeader model index category :: tableHeader :: (tableRows model (index+1)))
 
 catHeader model index category =
   let
-    criteria = model.referential.criteres |> Dict.values |> List.filter (\c -> c.category == index+1)
-    nbTotal = criteria |> List.length
-    notApplicable = criteria |> List.filter (\c -> c.status == NonApplicable) |> List.length
-    conforme = criteria |> List.filter (\c -> c.status == Conforme) |> List.length
-    score = toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> Round.round 2
+    progressBar = viewScore (model.referential.criteres |> Dict.values |> List.filter (\c -> c.category == index+1))
   in
     thead [ class "category-header" ]
     [ th [colspan 2] [ text ("Catégorie " ++ (String.fromInt (index+1)) ++ " : " ++ category) ]
-    , th [] [ text ("Score : " ++ score) ]
+    , progressBar
     ]
 
 tableHeader : Html Msg
@@ -195,7 +191,7 @@ tableHeader =
   thead []
     [ th [] [ text "#" ]
     , th [] [ text "Critère" ]
-    , th [] [ text "Statut" ]
+    , th [ class "status" ] [ text "Statut" ]
     ]
 
 tableRows : Model -> Int -> List (Html Msg)
@@ -210,10 +206,17 @@ funnyID (_, c) = c.category * 100 + c.item
 
 statusString : CriterionStatus -> String
 statusString s = case s of
-  NonConforme -> "Non conforme"
-  NonApplicable -> "Non applicable"
-  Conforme -> "Conforme"
-  EnDeploiement -> "En déploiement"
+  NonConforme -> "Non conforme ❌"
+  NonApplicable -> "Non applicable ☠️"
+  Conforme -> "Conforme ✅"
+  EnDeploiement -> "En déploiement 🏗️"
+
+statusClass : CriterionStatus -> String
+statusClass s = case s of
+  NonConforme -> "status-ko"
+  NonApplicable -> "status-na"
+  Conforme -> "status-ok"
+  EnDeploiement -> "status-wip"
 
 rotateStatus : CriterionStatus -> CriterionStatus
 rotateStatus s = case s of
@@ -224,8 +227,8 @@ rotateStatus s = case s of
 
 viewCriterion : (String, Criterion) -> Html Msg
 viewCriterion (id, c) =
-  tr []
+  tr [ class (statusClass c.status)]
     [ td [] [ text id ]
     , td [ class "criteria-cell" ] [ text c.critere ]
-    , td [onClick (SetStatus (getID c) (rotateStatus c.status))] [ text (statusString c.status) ]
+    , td [ class "status", onClick (SetStatus (getID c) (rotateStatus c.status))] [ text (statusString c.status) ]
     ]

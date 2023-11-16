@@ -1,4 +1,9 @@
 body {
+    max-width: 1000px;
+    margin: auto;
+}
+
+#content {
     margin: 30px;
 }
 
@@ -10,6 +15,15 @@ table td, table th, table tr {
     white-space: break-spaces;
 }
 
+.status {
+    text-align: end;
+}
+
+.status-na {
+    color: gray;
+    text-decoration: line-through;
+}
+
 .category-header {
     background-color: darkblue;
 }
@@ -18,4 +32,21 @@ table td, table th, table tr {
     .noprint {
         display: none;
     }
+}
+
+.score {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.progressbar {
+    height: 16px;
+    width: 100px;
+    background-color: #fff;
+    padding : 2px;
+}
+
+.progress {
+    height: 100%;
+    background-color: green;
 }
