@@ -207,6 +207,7 @@ init jFlags =
 type Msg =
   InputText String
   | LaunchEvaluation
+  | Relaunch String
   | SetStatus String CriterionStatus
   | NukeSelectedSite
   | SetOrder Order
@@ -230,6 +231,8 @@ update msg model =
         ({ model | textCandidate = text, isCandidateValidURL = valid }, Cmd.none)
 
     LaunchEvaluation -> ({ model | selectedSite = Just model.textCandidate }, Cmd.none)
+
+    Relaunch url -> ({ model | textCandidate = url, selectedSite = Just url }, Cmd.none)
 
     NukeSelectedSite -> ({ model | selectedSite = Nothing }, Cmd.none)
 
@@ -256,70 +259,66 @@ view model = case model.status of
     div [] [ text ( "Erreur : " ++ msg ) ]
   
   OK ->
-    div []
+    article []
       ( case model.selectedSite of
           Nothing ->
-            [ h1 [] [ text "Bloc-notes RGESN" ]
-            , span [] [ text "Bienvenue sur l'éco-évaluateur de sites web !" ]
-            , div []
-              [ span [] [ text "Entrez l'adresse du site que vous allez évaluer : " ]
-              , label [ for "currentSite" ] [ text "Nouveau site à évaluer" ]
+            [ h1 [] [ text "EcoChecker" ]
+            , p [] [ text "Bienvenue sur EcoChecker, votre assistant pour évaluer l'éco-conception des sites web."]
+            , p [] [ text "Le principe est simple : entrez l'URL du site que vous allez évaluer, puis vérifiez un à un les critères du ", a [ target "_blank", href "https://ecoresponsable.numerique.gouv.fr/publications/referentiel-general-ecoconception/" ] [ text "Référentiel général d'écoconception de services numériques (RGESN)"]]
+            , aside [ id "launcher"]
+              [ label [ for "currentSite" ] [ text "Site à évaluer" ]
               , input [ id "currentSite", type_ "url", value model.textCandidate, placeholder "https://www.esaip.org/", onInput InputText ] []
-              , if (Dict.isEmpty model.evaluations)
-                then (div [] [])
-                else ( div []
-                  [ span [] [ text "ou reprenez une évaluation en cours : " ]
-                  , label [ for "evaluatedSites" ] [ text "Sites déjà évalués" ]
-                  , select [ id "evaluatedSites", onInput InputText ] (option [ style "display" "none"] [] :: (List.map (\url -> option [] [ text url ]) (Dict.keys model.evaluations)))
-                ])
               , button (if model.isCandidateValidURL then [ onClick LaunchEvaluation ] else []) [ text "Go !" ]
               ]
+            , if (Dict.isEmpty model.evaluations)
+                then (div [] [])
+                else ( div []
+                  [ p [] [ text "ou reprenez une évaluation en cours : " ]
+                  , section [] (List.map (\url -> aside [ onClick (Relaunch url) ] [ text url ]) (Dict.keys model.evaluations))
+                  ])
             ]
           Just site ->
             [ nav [ id "topbar"]
               [ ul []
-                [ li [ class "noprint"] [ button [ onClick PrintPage ] [ text "🖨 Exporter en PDF" ] ]
-                , li [ class "noprint"] [ button [ onClick NukeSelectedSite ] [ text "Évaluer un autre site" ] ]
+                [ li [] [ a [ target "_blank", href site ] [ text site ] ]
+                , li [ class "noprint"] [ button [ class "light", onClick NukeSelectedSite ] [ text "Changer de site" ] ]
                 ]
               ]
-            , h1 [] [ text "Évaluation du site ", a [ href site ] [ text site ] ]
-            , div []
-              [ span [] [ text "Score de conformité : " ]
-              , viewScore (model.referential.criteres
-                |> Dict.keys
-                |> List.map (statusFromId (getEvaluation model)))
-              ]
-            , nav [id "filterbar", class "noprint"]
-              [ ul []
-                [ li [] [text "Afficher :"]
-                , li []
-                  [ button 
-                    [id "filter-all"
-                    , class (if model.filter == All then "filter-button active" else "filter-button inactive")
-                    , onClick (SetFilter All)]
-                    [ text "Tous les critères" ] ]
-                , li [] 
-                  [ button 
-                    [id "filter-ok"
-                    , class (if model.filter == OnlyConforme then "filter-button active" else "filter-button inactive")
-                    , onClick (SetFilter OnlyConforme)]
-                    [ text "Les conformes" ] ]
-                , li [] 
-                  [ button 
-                    [id "filter-wip"
-                    , class (if model.filter == OnlyEnDeploiement then "filter-button active" else "filter-button inactive")
-                    , onClick (SetFilter OnlyEnDeploiement)]
-                    [ text "Ceux en déploiement" ] ]
-                , li [] 
-                  [ button 
-                    [id "filter-na"
-                    , class (if model.filter == OnlyNonApplicable then "filter-button active" else "filter-button inactive")
-                    , onClick (SetFilter OnlyNonApplicable)]
-                    [ text "Les non-applicables" ] ]
+            , article []
+              [ h1 [] [ text "Évaluation du site " ]
+              , scoreCard model
+              , header [] [ button [ class "noprint light", onClick PrintPage ] [ text "🖨 Exporter le bilan détaillé en PDF" ] ]
+              , nav [id "filterbar", class "noprint"]
+                [ ul []
+                  [ li [] [text "Afficher :"]
+                  , li []
+                    [ button 
+                      [id "filter-all"
+                      , class (if model.filter == All then "filter-button active" else "filter-button inactive")
+                      , onClick (SetFilter All)]
+                      [ text "Tous les critères" ] ]
+                  , li [] 
+                    [ button 
+                      [id "filter-ok"
+                      , class (if model.filter == OnlyConforme then "filter-button active" else "filter-button inactive")
+                      , onClick (SetFilter OnlyConforme)]
+                      [ text "Les conformes" ] ]
+                  , li [] 
+                    [ button 
+                      [id "filter-wip"
+                      , class (if model.filter == OnlyEnDeploiement then "filter-button active" else "filter-button inactive")
+                      , onClick (SetFilter OnlyEnDeploiement)]
+                      [ text "Ceux en déploiement" ] ]
+                  , li [] 
+                    [ button 
+                      [id "filter-na"
+                      , class (if model.filter == OnlyNonApplicable then "filter-button active" else "filter-button inactive")
+                      , onClick (SetFilter OnlyNonApplicable)]
+                      [ text "Les non-applicables" ] ]
+                  ]
                 ]
+              , div [] (List.indexedMap (categoryTable model) categories)
               ]
-            , div [] (List.indexedMap (categoryTable model) categories)
-            --, button [ class "noprint", attribute "onclick" "window.print()" ] [ text "🖨 Imprimer ce rapport" ] -- TODO make a port to JS
             ]
         )
 
@@ -329,15 +328,38 @@ getEvaluation model =
     Just url -> Dict.get url model.evaluations |> Maybe.withDefault Dict.empty
     Nothing -> Dict.empty
 
-viewScore : List CriterionStatus -> Html Msg
-viewScore statuses =
+getScore : List CriterionStatus -> Maybe String
+getScore statuses =
   let
     nbTotal = statuses |> List.length
     notApplicable = statuses |> List.filter (\v -> v == NonApplicable) |> List.length
     conforme = statuses |> List.filter (\v -> v == Conforme) |> List.length
-    score = 100.0 * toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> round |> String.fromInt |> (\s -> s++"%")
   in
-    div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], span [class "percents"] [text score] ]
+    if (notApplicable == nbTotal) then Nothing else
+      Just (100.0 * toFloat conforme / (toFloat nbTotal - toFloat notApplicable) |> round |> String.fromInt |> (\s -> s++"%"))
+
+viewScore : List CriterionStatus -> Html Msg
+viewScore statuses =
+  case getScore statuses of
+    Just score -> div [ class "score" ] [ div [class "progressbar" ] [ div [ class "progress", style "width" score ] [] ], span [class "percents"] [text score] ]
+    Nothing -> div [] [ text "Pas de critère applicable"]
+
+scoreCard : Model -> Html Msg
+scoreCard model =
+  case getScore (model.referential.criteres |> Dict.keys |> List.map (statusFromId (getEvaluation model))) of
+    Just score -> 
+      aside []
+      [
+        details [ id "scorecard-details"]
+        [ summary [ id "scorecard" ]
+            [ span [] [ text "Score de conformité : " ]
+            , div [ id "main-progressbar" ] [ div [ id "main-progress", style "width" score ] [] ]
+            , span [class "percents"] [text score]
+            ]
+        , div [] (List.indexedMap (catHeader model) categories)
+        ]
+      ]
+    Nothing -> div [] [ text "Pas de critère applicable"]
 
 categoryTable : Model -> Int -> String -> Html Msg
 categoryTable model index category =

@@ -153,6 +153,7 @@ button.status-wip {
 
 .filter-button {
     border: none;
+    padding: 0.2rem 1rem;
 }
 
 #filter-ok {
@@ -169,4 +170,45 @@ button.status-wip {
 
 .percents {
     width: 42px;
+}
+
+aside {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#scorecard {
+/*    padding: 1rem;*/
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#scorecard-details {
+  width: 100%;
+}
+
+#main-progressbar {
+    flex-grow:100;
+    height: 1rem;
+    background-color: #fff;
+    padding : 2px;
+    border: 1px solid gray;
+}
+
+#main-progress {
+    height: 100%;
+    background-color: green;
+}
+
+#currentSite {
+    flex-grow: 100;
+    padding: 0.8rem;
+    margin-bottom: 0rem;
+}
+
+button.light {
+    background-color: #fff;
+    color : var(--color-link);
 }
