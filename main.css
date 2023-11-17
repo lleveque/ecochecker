@@ -54,6 +54,14 @@ table {
         display: none;
     }
 
+    .progress {
+        border: 3px solid black;
+    }
+
+    #main-progress {
+        border: 4px solid black;
+    }
+
     .category {
         break-before: page;
     }
