@@ -1,4 +1,4 @@
-port module Main exposing (main, printPage, storeData)
+port module Main exposing (main, printPage, storeData, exportData)
 
 import Browser
 import Dict
@@ -23,6 +23,8 @@ port printPage : () -> Cmd msg
 
 port storeData : Json.Encode.Value -> Cmd msg
 
+port exportData : Json.Encode.Value -> Cmd msg
+
 -- MODEL
 
 
@@ -40,6 +42,9 @@ type alias Model =
 
 saveData : Dict.Dict String Evaluation -> Cmd msg
 saveData evaluations = evaluations |> evaluationsEncoder |> storeData
+
+pushData : Dict.Dict String Evaluation -> Cmd msg
+pushData evaluations = evaluations |> evaluationsEncoder |> exportData
 
 evaluationsEncoder : Dict.Dict String Evaluation -> Json.Encode.Value
 evaluationsEncoder evaluations = Json.Encode.dict identity evaluationEncoder evaluations
@@ -213,12 +218,15 @@ type Msg =
   | SetOrder Order
   | SetFilter Filter
   | PrintPage
+  | ExportData
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
 
   case msg of
+
+    ExportData -> (model, pushData model.evaluations)
 
     PrintPage -> (model, printPage ())
 
@@ -275,7 +283,10 @@ view model = case model.status of
                 else ( div []
                   [ p [] [ text "ou reprenez une évaluation en cours : " ]
                   , section [] (List.map (\url -> aside [ onClick (Relaunch url) ] [ text url ]) (Dict.keys model.evaluations))
-                  ])
+                  , p [] [ text "Vos données vous appartiennent ! EcoChecker le sait, et vous les tient à disposition :"]
+                  , header [] [ button [class "light", onClick ExportData ] [ text "Télécharger mes données" ] ]
+                  ]
+                  )
             ]
           Just site ->
             [ nav [ id "topbar"]
